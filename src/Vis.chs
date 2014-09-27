@@ -1,6 +1,8 @@
 {-# LANGUAGE ForeignFunctionInterface, CPP #-}
 module Vis where
 
+import Data.Bits ((.|.))
+import Data.Int  (Int64)
 import Foreign.C
 import Foreign.Ptr
 import Foreign.Storable
@@ -12,7 +14,7 @@ import Foreign.Storable
     , IO_INT     as PvInt
     , IO_FLOAT   as PvFloat
     , IO_STRING  as PvString
-    } deriving (Eq) #}
+    } deriving (Eq, Show) #}
 
 {# enum define IoMask
     { IOB_MASK_ACCESS  as IoMaskAccess
@@ -29,18 +31,23 @@ import Foreign.Storable
     , IOB_MASK_WEIGHT  as IoMaskWeight
     , IOB_MASK_ACCNT   as IoMaskAccnt
     , IOB_MASK_ADVANCE as IoMaskAdvance
-    } deriving (Eq) #}
+    } deriving (Eq, Show) #}
 
 {# pointer *IobPV newtype #}
-{# pointer IobEventProc newtype #}
+{# pointer IobEventProc #}
 
 {# fun VikWaitAccess as ^
-    {    `String'
-    ,    `IoMask'
-    ,    `IobEventProc'
-    , id `(Ptr ())'
+    {      `String'
+    , ored `[IoMask]'
+    ,      `IobEventProc'
+    , id   `(Ptr ())'
     } -> `IobPV' id #}
+    where ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 
 getPvType :: IobPV -> IO PvType
 getPvType (IobPV t) =
     {# get IobPV->type #} t >>= return . toEnum . fromIntegral
+
+getIntFromPv :: IobPV -> IO Int64
+getIntFromPv (IobPV t) =
+    {# get IobPV->u.i.val #} t >>= return . fromIntegral
