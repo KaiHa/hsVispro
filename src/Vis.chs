@@ -4,6 +4,7 @@ module Vis where
 import Data.Bits ((.|.))
 import Data.Int  (Int64)
 import Foreign.C
+import Foreign.C.String
 import Foreign.Ptr
 import Foreign.Storable
 
@@ -45,9 +46,20 @@ import Foreign.Storable
     where ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 
 getPvType :: IobPV -> IO PvType
-getPvType (IobPV t) =
-    {# get IobPV->type #} t >>= return . toEnum . fromIntegral
+getPvType (IobPV pv) =
+    {# get IobPV->type #} pv >>= return . toEnum . fromIntegral
 
 getIntFromPv :: IobPV -> IO Int64
-getIntFromPv (IobPV t) =
-    {# get IobPV->u.i.val #} t >>= return . fromIntegral
+getIntFromPv (IobPV pv) =
+    {# get IobPV->u.i.val #} pv >>= return . fromIntegral
+
+getFloatFromPv :: IobPV -> IO Double
+getFloatFromPv (IobPV pv) =
+    {# get IobPV->u.f.val #} pv >>= \(CDouble a) -> return a
+
+getStringFromPv :: IobPV -> IO String
+getStringFromPv (IobPV pv) =
+    {# get IobPV->u.s.val #} pv >>= peekCAString
+
+getPv :: String -> IO IobPV
+getPv path = vikWaitAccess path [] nullFunPtr nullPtr
