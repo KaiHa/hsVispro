@@ -21,5 +21,6 @@ library
   other-extensions:    ForeignFunctionInterface, CPP
   build-depends:       base >=4.6 && <4.7
   hs-source-dirs:      src
-  build-tools:         chs
+  build-tools:         c2hs
   default-language:    Haskell2010
+  include-dirs:        /opt/vispro/include
