@@ -1,6 +1,13 @@
 {-# LANGUAGE ForeignFunctionInterface, CPP #-}
-module Vis where
+module Vis
+( Hostname
+, IoMask
+, getValue
+, vikConnect
+)
+where
 
+import Control.Applicative ((<$>))
 import Data.Bits ((.|.))
 import Data.Int  (Int64)
 import Foreign.C
@@ -9,6 +16,12 @@ import Foreign.Ptr
 import Foreign.Storable
 
 #include <VisIOB.h>
+#include <VisServ.h>
+
+data IobValue = IobInt Int64 | IobFloat Double | IobString String | Error String
+    deriving (Show)
+
+newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
 
 {# enum define PvType
     { IO_UNKNOWN as PvUnknown
@@ -34,8 +47,16 @@ import Foreign.Storable
     , IOB_MASK_ADVANCE as IoMaskAdvance
     } deriving (Eq, Show) #}
 
-{# pointer *IobPV newtype #}
-{# pointer IobEventProc #}
+ored :: Integral a => [IoMask] -> a
+ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
+
+{# pointer *IobPV       newtype #}
+{# pointer *SkLine      newtype #}
+{# pointer IobEventProc newtype #}
+
+{# fun VikConnect as ^
+    { toCStr* `Hostname', `String' } -> `SkLine' #}
+    where toCStr a = withCString (unHostname a)
 
 {# fun VikWaitAccess as ^
     {      `String'
@@ -43,7 +64,20 @@ import Foreign.Storable
     ,      `IobEventProc'
     , id   `(Ptr ())'
     } -> `IobPV' id #}
-    where ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
+
+{# fun VikRelease as ^
+    {      `IobPV'
+    , ored `[IoMask]'
+    ,      `IobEventProc'
+    , id   `(Ptr ())'
+    } -> `()' id #}
+
+step :: IO ()
+step = {# call VskStep as ^ #}
+
+-- XXX do we need this?
+init :: IO ()
+init = {# call VskInitLoop as ^ #}
 
 getPvType :: IobPV -> IO PvType
 getPvType (IobPV pv) =
@@ -61,5 +95,18 @@ getStringFromPv :: IobPV -> IO String
 getStringFromPv (IobPV pv) =
     {# get IobPV->u.s.val #} pv >>= peekCAString
 
-getPv :: String -> IO IobPV
-getPv path = vikWaitAccess path [] nullFunPtr nullPtr
+getValue :: String -> IO IobValue
+getValue path = do
+    step -- XXX where to put this?
+    pv  <- vikWaitAccess path mask funcPtr nullPtr
+    pvType <- getPvType pv
+    val <- case pvType of
+        PvInt     -> IobInt    <$> getIntFromPv pv
+        PvFloat   -> IobFloat  <$> getFloatFromPv pv
+        PvString  -> IobString <$> getStringFromPv pv
+        otherwise -> return $ Error "Unknown PV type returned"
+    vikRelease pv mask funcPtr nullPtr
+    return val
+    where
+        mask    = [IoMaskChange]
+        funcPtr = IobEventProc nullFunPtr
