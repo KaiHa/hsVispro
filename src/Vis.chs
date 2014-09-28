@@ -53,7 +53,12 @@ ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 {# pointer *IobPV       newtype #}
 {# pointer *IOBEvent    newtype #}
 {# pointer *SkLine      newtype #}
-type IobEventProc = FunPtr (Ptr () ->  IobPV -> Ptr () -> IO ())
+type IobEventProc = Ptr () ->  IobPV -> Ptr () -> IO ()
+foreign import ccall "wrapper"
+    mkIobEventProc :: IobEventProc -> IO (FunPtr IobEventProc)
+
+updateValue :: Ptr () ->  IobPV -> Ptr () -> IO ()
+updateValue _ pv _ = unwrapValue pv >>= putStrLn . show
 
 {# fun VikConnect as ^
     { toCStr* `Hostname', `String' } -> `SkLine' #}
@@ -62,14 +67,14 @@ type IobEventProc = FunPtr (Ptr () ->  IobPV -> Ptr () -> IO ())
 {# fun VikWaitAccess as ^
     {      `String'
     , ored `[IoMask]'
-    , id   `IobEventProc'
+    , id   `FunPtr IobEventProc'
     , id   `(Ptr ())'
     } -> `IobPV' id #}
 
 {# fun VikRelease as ^
     {      `IobPV'
     , ored `[IoMask]'
-    , id   `IobEventProc'
+    , id   `FunPtr IobEventProc'
     , id   `(Ptr ())'
     } -> `()' id #}
 
@@ -99,15 +104,20 @@ getStringFromPv (IobPV pv) =
 getValue :: String -> IO IobValue
 getValue path = do
     step -- XXX where to put this?
-    pv  <- vikWaitAccess path mask funcPtr nullPtr
-    pvType <- getPvType pv
-    val <- case pvType of
+    fp  <- mkIobEventProc updateValue -- XXX when should we freeHaskellFunPtr
+    pv  <- vikWaitAccess path mask fp nullPtr
+    val <- unwrapValue pv
+--    vikRelease pv mask fp nullPtr
+--    freeHaskellFunPtr fp
+    return val
+    where mask    = [IoMaskChange]
+
+-- XXX Is the IO monad necessary
+unwrapValue :: IobPV -> IO IobValue
+unwrapValue pv =
+    getPvType pv >>=
+    \a -> case a of
         PvInt     -> IobInt    <$> getIntFromPv pv
         PvFloat   -> IobFloat  <$> getFloatFromPv pv
         PvString  -> IobString <$> getStringFromPv pv
         otherwise -> return $ Error "Unknown PV type returned"
-    vikRelease pv mask funcPtr nullPtr
-    return val
-    where
-        mask    = [IoMaskChange]
-        funcPtr = nullFunPtr
