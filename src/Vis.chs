@@ -51,8 +51,9 @@ ored :: Integral a => [IoMask] -> a
 ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 
 {# pointer *IobPV       newtype #}
+{# pointer *IOBEvent    newtype #}
 {# pointer *SkLine      newtype #}
-{# pointer IobEventProc newtype #}
+type IobEventProc = FunPtr (Ptr () ->  IobPV -> Ptr () -> IO ())
 
 {# fun VikConnect as ^
     { toCStr* `Hostname', `String' } -> `SkLine' #}
@@ -61,14 +62,14 @@ ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 {# fun VikWaitAccess as ^
     {      `String'
     , ored `[IoMask]'
-    ,      `IobEventProc'
+    , id   `IobEventProc'
     , id   `(Ptr ())'
     } -> `IobPV' id #}
 
 {# fun VikRelease as ^
     {      `IobPV'
     , ored `[IoMask]'
-    ,      `IobEventProc'
+    , id   `IobEventProc'
     , id   `(Ptr ())'
     } -> `()' id #}
 
@@ -109,4 +110,4 @@ getValue path = do
     return val
     where
         mask    = [IoMaskChange]
-        funcPtr = IobEventProc nullFunPtr
+        funcPtr = nullFunPtr
