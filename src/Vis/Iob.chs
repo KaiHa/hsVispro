@@ -1,17 +1,20 @@
 {-# LANGUAGE ForeignFunctionInterface, CPP #-}
-module Vis
+module Vis.Iob
 ( Hostname
 , IoMask
-, getValue
-, vikConnect
+, iobConnect
+, iobGetValue
+, iobSubscribeValue
 )
 where
 
 import Control.Applicative ((<$>))
 import Data.Bits ((.|.))
 import Data.Int  (Int64)
+import Data.Word (Word64)
 import Foreign.C
 import Foreign.C.String
+import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
 
@@ -20,6 +23,8 @@ import Foreign.Storable
 
 data IobValue = IobInt Int64 | IobFloat Double | IobString String | Error String
     deriving (Show)
+
+type IobState = [Word64]
 
 newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
 
@@ -50,9 +55,9 @@ newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
 ored :: Integral a => [IoMask] -> a
 ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 
-{# pointer *IobPV       newtype #}
-{# pointer *IOBEvent    newtype #}
-{# pointer *SkLine      newtype #}
+{# pointer *IobPV    newtype #}
+{# pointer *IOBEvent newtype #}
+{# pointer *SkLine   newtype #}
 type IobEventProc = Ptr () ->  IobPV -> Ptr () -> IO ()
 foreign import ccall "wrapper"
     mkIobEventProc :: IobEventProc -> IO (FunPtr IobEventProc)
@@ -60,11 +65,18 @@ foreign import ccall "wrapper"
 updateValue :: Ptr () ->  IobPV -> Ptr () -> IO ()
 updateValue _ pv _ = unwrapValue pv >>= putStrLn . show
 
-{# fun VikConnect as ^
+{# fun VikConnect as iobConnect
     { toCStr* `Hostname', `String' } -> `SkLine' #}
     where toCStr a = withCString (unHostname a)
 
 {# fun VikWaitAccess as ^
+    {      `String'
+    , ored `[IoMask]'
+    , id   `FunPtr IobEventProc'
+    , id   `(Ptr ())'
+    } -> `IobPV' id #}
+
+{# fun VikAccess as ^
     {      `String'
     , ored `[IoMask]'
     , id   `FunPtr IobEventProc'
@@ -101,15 +113,29 @@ getStringFromPv :: IobPV -> IO String
 getStringFromPv (IobPV pv) =
     {# get IobPV->u.s.val #} pv >>= peekCAString
 
-getValue :: String -> IO IobValue
-getValue path = do
+getStateFromPV :: IobPV -> IO [Word64]
+getStateFromPV (IobPV pv) =
+    {# get IobPV->state #} pv >>= peekArray 3 >>= return . map fromIntegral
+
+-- |Request a value from the IOBase server.
+iobGetValue :: String -> IO (IobValue, IobState)
+iobGetValue path = do
     step -- XXX where to put this?
-    fp  <- mkIobEventProc updateValue -- XXX when should we freeHaskellFunPtr
-    pv  <- vikWaitAccess path mask fp nullPtr
+    pv  <- vikWaitAccess path mask nullFunPtr nullPtr
     val <- unwrapValue pv
+    state <- getStateFromPV pv
+    vikRelease pv mask nullFunPtr nullPtr
+    return (val, state)
+    where mask    = [IoMaskChange]
+
+-- |Subscribe to a value from the IOBase server.
+iobSubscribeValue :: String -> IobEventProc -> IO ()
+iobSubscribeValue path callback = do
+    fp <- mkIobEventProc callback -- XXX when should we freeHaskellFunPtr
+    pv <- vikAccess path mask fp nullPtr
 --    vikRelease pv mask fp nullPtr
 --    freeHaskellFunPtr fp
-    return val
+    return ()
     where mask    = [IoMaskChange]
 
 -- XXX Is the IO monad necessary
