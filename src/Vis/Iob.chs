@@ -98,23 +98,23 @@ init :: IO ()
 init = {# call VskInitLoop as ^ #}
 
 getPvType :: IobPV -> IO PvType
-getPvType (IobPV pv) =
+getPvType pv =
     {# get IobPV->type #} pv >>= return . toEnum . fromIntegral
 
 getIntFromPv :: IobPV -> IO Int64
-getIntFromPv (IobPV pv) =
+getIntFromPv pv =
     {# get IobPV->u.i.val #} pv >>= return . fromIntegral
 
 getFloatFromPv :: IobPV -> IO Double
-getFloatFromPv (IobPV pv) =
+getFloatFromPv pv =
     {# get IobPV->u.f.val #} pv >>= \(CDouble a) -> return a
 
 getStringFromPv :: IobPV -> IO String
-getStringFromPv (IobPV pv) =
+getStringFromPv pv =
     {# get IobPV->u.s.val #} pv >>= peekCAString
 
 getStateFromPV :: IobPV -> IO [Word64]
-getStateFromPV (IobPV pv) =
+getStateFromPV pv =
     {# get IobPV->state #} pv >>= peekArray 3 >>= return . map fromIntegral
 
 -- |Request a value from the IOBase server.
