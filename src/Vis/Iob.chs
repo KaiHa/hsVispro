@@ -1,14 +1,19 @@
 {-# LANGUAGE ForeignFunctionInterface, CPP #-}
 module Vis.Iob
 ( Hostname(..)
+, IobValue(..)
 , IoMask
+, iobAccess
 , iobConnect
 , iobGetValue
+, iobRelease
+, iobSetValue
 , iobSubscribeValue
 )
 where
 
 import Control.Applicative ((<$>))
+import Control.Monad       (void, when)
 import Data.Bits ((.|.))
 import Data.Int  (Int64)
 import Data.Word (Word32)
@@ -22,9 +27,11 @@ import Foreign.Storable
 #include <VisServ.h>
 
 data IobValue = IobInt Int64 | IobFloat Double | IobString String | Error String
-    deriving (Show)
+    deriving (Show, Eq)
 
 type IobState = [Word32]
+
+data PvHandle = PvHandle IobPV [IoMask] (FunPtr IobEventProc) (Ptr ())
 
 newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
 
@@ -62,8 +69,6 @@ type IobEventProc = Ptr () ->  IobPV -> Ptr () -> IO ()
 foreign import ccall "wrapper"
     mkIobEventProc :: IobEventProc -> IO (FunPtr IobEventProc)
 
-updateValue :: Ptr () ->  IobPV -> Ptr () -> IO ()
-updateValue _ pv _ = unwrapValue pv >>= putStrLn . show
 
 {# fun VikConnect as iobConnect
     { toCStr* `Hostname', `String' } -> `SkLine' #}
@@ -89,6 +94,11 @@ updateValue _ pv _ = unwrapValue pv >>= putStrLn . show
     , id   `FunPtr IobEventProc'
     , id   `(Ptr ())'
     } -> `()' id #}
+
+{# fun VikSetVal as ^
+    { `IobPV'
+    , `String'
+    } -> `CInt' id #}
 
 step :: IO ()
 step = {# call VskStep as ^ #}
@@ -117,26 +127,55 @@ getStateFromPV :: IobPV -> IO [Word32]
 getStateFromPV pv =
     {# get IobPV->state #} pv >>= peekArray 3 >>= return . map fromIntegral
 
+
 -- |Request a value from the IOBase server.
 iobGetValue :: String -> IO (IobValue, IobState)
 iobGetValue path = do
-    step -- XXX where to put this?
-    pv  <- vikWaitAccess path mask nullFunPtr nullPtr
-    val <- unwrapValue pv
-    state <- getStateFromPV pv
-    vikRelease pv mask nullFunPtr nullPtr
+    pv  <- iobAccess path
+    val <- unwrapValue $ un pv
+    state <- getStateFromPV $ un pv
+    iobRelease pv
     return (val, state)
-    where mask    = [IoMaskChange]
+    where un (PvHandle pv _ _ _) = pv
+
+
+-- |Get a PV handle from the IOBase server.
+-- You must free the 'PvHandle' with 'iobRelease' if you no longer need it.
+iobAccess:: String -> IO PvHandle
+iobAccess path = do
+    step -- XXX where to put this?
+    pv <- vikWaitAccess path [] nullFunPtr nullPtr
+    return (PvHandle pv [] nullFunPtr nullPtr)
+
+
+-- |Release a PvHandle.
+iobRelease :: PvHandle -> IO ()
+iobRelease (PvHandle pv mask fp arg) = do
+    vikRelease pv mask fp arg
+    when (fp /= nullFunPtr) $ freeHaskellFunPtr fp
+    step -- XXX where to put this?
+
+
+-- |Write a value to the IOBase server.
+iobSetValue :: PvHandle -> IobValue -> IO ()
+iobSetValue (PvHandle pv _ _ _) val = do
+    void $ set val
+    step
+    where
+        set (IobString v) = vikSetVal pv v
+        set (IobInt    v) = vikSetVal pv $ show v
+        set (IobFloat  v) = vikSetVal pv $ show v
+
 
 -- |Subscribe to a value from the IOBase server.
-iobSubscribeValue :: String -> IobEventProc -> IO ()
+-- You must end the subscription and free the 'PvHandle' with 'iobRelease'.
+iobSubscribeValue :: String -> IobEventProc -> IO PvHandle
 iobSubscribeValue path callback = do
-    fp <- mkIobEventProc callback -- XXX when should we freeHaskellFunPtr
+    fp <- mkIobEventProc callback
     pv <- vikAccess path mask fp nullPtr
---    vikRelease pv mask fp nullPtr
---    freeHaskellFunPtr fp
-    return ()
+    return (PvHandle pv mask fp nullPtr)
     where mask    = [IoMaskChange]
+
 
 -- XXX Is the IO monad necessary
 unwrapValue :: IobPV -> IO IobValue
