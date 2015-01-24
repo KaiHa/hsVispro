@@ -11,7 +11,7 @@ where
 import Control.Applicative ((<$>))
 import Data.Bits ((.|.))
 import Data.Int  (Int64)
-import Data.Word (Word64)
+import Data.Word (Word32)
 import Foreign.C
 import Foreign.C.String
 import Foreign.Marshal.Array
@@ -24,7 +24,7 @@ import Foreign.Storable
 data IobValue = IobInt Int64 | IobFloat Double | IobString String | Error String
     deriving (Show)
 
-type IobState = [Word64]
+type IobState = [Word32]
 
 newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
 
@@ -113,7 +113,7 @@ getStringFromPv :: IobPV -> IO String
 getStringFromPv pv =
     {# get IobPV->u.s.val #} pv >>= peekCAString
 
-getStateFromPV :: IobPV -> IO [Word64]
+getStateFromPV :: IobPV -> IO [Word32]
 getStateFromPV pv =
     {# get IobPV->state #} pv >>= peekArray 3 >>= return . map fromIntegral
 
