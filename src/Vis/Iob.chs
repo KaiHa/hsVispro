@@ -71,7 +71,7 @@ foreign import ccall "wrapper"
     mkIobEventProc :: IobEventProc -> IO (FunPtr IobEventProc)
 
 
-{# fun VikConnect as iobConnect
+{# fun VikConnect as ^
     { toCStr* `Hostname', `String' } -> `SkLine' #}
     where toCStr a = withCString (unHostname a)
 
@@ -105,8 +105,8 @@ step :: IO ()
 step = {# call VskStep as ^ #}
 
 -- XXX do we need this?
-init :: IO ()
-init = {# call VskInitLoop as ^ #}
+vskInit :: IO ()
+vskInit = {# call VskInitLoop as ^ #}
 
 getPvType :: IobPV -> IO PvType
 getPvType pv =
@@ -139,6 +139,12 @@ getValueFromPv pv =
         PvString  -> IobString <$> getStringFromPv pv
         otherwise -> return $ Error "Unknown PV type returned"
 
+
+iobConnect :: Hostname -> String -> IO SkLine
+iobConnect h n = do
+    l <- vikConnect h n
+    -- XXX Do we need to do more here?
+    return l
 
 -- |Request a value from the IOBase server.
 iobGetValue :: String -> IO (IobValue, IobState)
@@ -183,6 +189,7 @@ iobSetValue (PvHandle pv _ _ _) val = do
 -- You must end the subscription and free the 'PvHandle' with 'iobRelease'.
 iobSubscribeValue :: String -> IobEventProc -> IO PvHandle
 iobSubscribeValue path callback = do
+    step
     fp <- mkIobEventProc callback
     pv <- vikAccess path mask fp nullPtr
     return (PvHandle pv mask fp nullPtr)
