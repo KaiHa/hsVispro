@@ -9,6 +9,7 @@ module Vis.Iob
 , iobRelease
 , iobSetValue
 , iobSubscribeValue
+, getValueFromPv
 )
 where
 
@@ -128,11 +129,22 @@ getStateFromPV pv =
     {# get IobPV->state #} pv >>= peekArray 3 >>= return . map fromIntegral
 
 
+-- |Extract the value from a IobPv.
+getValueFromPv :: IobPV -> IO IobValue
+getValueFromPv pv =
+    getPvType pv >>=
+    \a -> case a of
+        PvInt     -> IobInt    <$> getIntFromPv pv
+        PvFloat   -> IobFloat  <$> getFloatFromPv pv
+        PvString  -> IobString <$> getStringFromPv pv
+        otherwise -> return $ Error "Unknown PV type returned"
+
+
 -- |Request a value from the IOBase server.
 iobGetValue :: String -> IO (IobValue, IobState)
 iobGetValue path = do
     pv  <- iobAccess path
-    val <- unwrapValue $ un pv
+    val <- getValueFromPv $ un pv
     state <- getStateFromPV $ un pv
     iobRelease pv
     return (val, state)
@@ -175,14 +187,3 @@ iobSubscribeValue path callback = do
     pv <- vikAccess path mask fp nullPtr
     return (PvHandle pv mask fp nullPtr)
     where mask    = [IoMaskChange]
-
-
--- XXX Is the IO monad necessary
-unwrapValue :: IobPV -> IO IobValue
-unwrapValue pv =
-    getPvType pv >>=
-    \a -> case a of
-        PvInt     -> IobInt    <$> getIntFromPv pv
-        PvFloat   -> IobFloat  <$> getFloatFromPv pv
-        PvString  -> IobString <$> getStringFromPv pv
-        otherwise -> return $ Error "Unknown PV type returned"
