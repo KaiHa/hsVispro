@@ -30,11 +30,13 @@ import Foreign.Storable
 data IobValue = IobInt Int64 | IobFloat Double | IobString String | IobUnknownType
     deriving (Show, Eq)
 
-type IobState = [Word32]
+data IobState = IobState Word32 Word32 Word32
+    deriving (Show, Eq)
 
 data PvHandle = PvHandle IobPV [IoMask] (FunPtr IobEventProc) (Ptr ())
 
 data ReturnCode = Success | ErrorCode CInt
+    deriving (Show, Eq)
 
 newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
 
@@ -155,7 +157,7 @@ iobGetValue path = do
     val <- getValueFromPv $ un pv
     state <- getStateFromPV $ un pv
     iobRelease pv
-    return (val, state)
+    return (val, IobState (state !! 0) (state !! 1) (state !! 2))
     where un (PvHandle pv _ _ _) = pv
 
 
