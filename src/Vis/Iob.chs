@@ -30,13 +30,13 @@ import Foreign.Storable
 data IobValue = IobInt Int64 | IobFloat Double | IobString String | IobUnknownType
     deriving (Show, Eq)
 
-data IobState = IobState Word32 Word32 Word32
-    deriving (Show, Eq)
+data IobState = IobState Word32 Word32 Word32 deriving (Show, Eq)
 
 data PvHandle = PvHandle IobPV [IoMask] (FunPtr IobEventProc) (Ptr ())
 
-data ReturnCode = Success | ErrorCode CInt
-    deriving (Show, Eq)
+data ReturnCode = Success | ErrorCode CInt deriving (Show, Eq)
+
+data UserWord = UserWord1 | UserWord2 deriving (Show, Eq)
 
 newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
 
@@ -105,6 +105,12 @@ foreign import ccall "wrapper"
     , `String'
     } -> `CInt' id #}
 
+{# fun VikSetUsrState as ^
+    { `IobPV'
+    , `CInt'
+    , `CULong'
+    } -> `CInt' id #}
+
 step :: IO ()
 step = {# call VskStep as ^ #}
 
@@ -132,6 +138,8 @@ getStateFromPV :: IobPV -> IO [Word32]
 getStateFromPV pv =
     {# get IobPV->state #} pv >>= peekArray 3 >>= return . map fromIntegral
 
+cintToReturnCode :: CInt -> ReturnCode
+cintToReturnCode err = if (err == 0) then Success else ErrorCode err
 
 -- |Extract the value from a IobPv.
 getValueFromPv :: IobPV -> IO IobValue
@@ -183,13 +191,22 @@ iobSetValue :: PvHandle -> IobValue -> IO ReturnCode
 iobSetValue (PvHandle pv _ _ _) val = do
     err <- set val
     step
-    if (err == 0)
-    then return Success
-    else return $ ErrorCode err
+    return $ cintToReturnCode err
     where
         set (IobString v) = vikSetVal pv v
         set (IobInt    v) = vikSetVal pv $ show v
         set (IobFloat  v) = vikSetVal pv $ show v
+
+
+-- |Write a user status to the IOBase server.
+iobSetState :: PvHandle -> UserWord -> Word32 -> IO ReturnCode
+iobSetState (PvHandle pv _ _ _) w val = do
+    err <- vikSetUsrState pv n $ CULong val
+    step
+    return $ cintToReturnCode err
+    where toCInt UserWord1 = 0
+          toCInt UserWord2 = 1
+          n = toCInt w
 
 
 -- |Subscribe to a value from the IOBase server.
