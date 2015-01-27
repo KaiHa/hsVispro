@@ -27,12 +27,14 @@ import Foreign.Storable
 #include <VisIOB.h>
 #include <VisServ.h>
 
-data IobValue = IobInt Int64 | IobFloat Double | IobString String | Error String
+data IobValue = IobInt Int64 | IobFloat Double | IobString String | IobUnknownType
     deriving (Show, Eq)
 
 type IobState = [Word32]
 
 data PvHandle = PvHandle IobPV [IoMask] (FunPtr IobEventProc) (Ptr ())
+
+data ReturnCode = Success | ErrorCode CInt
 
 newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
 
@@ -137,7 +139,7 @@ getValueFromPv pv =
         PvInt     -> IobInt    <$> getIntFromPv pv
         PvFloat   -> IobFloat  <$> getFloatFromPv pv
         PvString  -> IobString <$> getStringFromPv pv
-        otherwise -> return $ Error "Unknown PV type returned"
+        otherwise -> return $ IobUnknownType
 
 
 iobConnect :: Hostname -> String -> IO SkLine
@@ -175,10 +177,13 @@ iobRelease (PvHandle pv mask fp arg) = do
 
 
 -- |Write a value to the IOBase server.
-iobSetValue :: PvHandle -> IobValue -> IO ()
+iobSetValue :: PvHandle -> IobValue -> IO ReturnCode
 iobSetValue (PvHandle pv _ _ _) val = do
-    void $ set val
+    err <- set val
     step
+    if (err == 0)
+    then return Success
+    else return $ ErrorCode err
     where
         set (IobString v) = vikSetVal pv v
         set (IobInt    v) = vikSetVal pv $ show v
