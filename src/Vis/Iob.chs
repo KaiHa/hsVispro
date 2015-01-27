@@ -158,15 +158,16 @@ iobConnect h n = do
     -- XXX Do we need to do more here?
     return l
 
+
 -- |Request a value from the IOBase server.
 iobGetValue :: String -> IO (IobValue, IobState)
 iobGetValue path = do
-    pv  <- iobAccess path
-    val <- getValueFromPv $ un pv
-    state <- getStateFromPV $ un pv
-    iobRelease pv
+    step -- XXX where to put this?
+    pv <- vikWaitAccess path [] nullFunPtr nullPtr
+    val <- getValueFromPv pv
+    state <- getStateFromPV pv
+    vikRelease pv [] nullFunPtr nullPtr
     return (val, IobState (state !! 0) (state !! 1) (state !! 2))
-    where un (PvHandle pv _ _ _) = pv
 
 
 -- |Get a PV handle from the IOBase server.
@@ -174,7 +175,7 @@ iobGetValue path = do
 iobAccess:: String -> IO PvHandle
 iobAccess path = do
     step -- XXX where to put this?
-    pv <- vikWaitAccess path [] nullFunPtr nullPtr
+    pv <- vikAccess path [] nullFunPtr nullPtr
     return (PvHandle pv [] nullFunPtr nullPtr)
 
 

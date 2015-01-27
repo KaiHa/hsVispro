@@ -7,9 +7,7 @@ import Vis.Iob
 
 main :: IO ()
 main = do
-  iobConnect (Hostname "localhost") "hsFoo"
-  -- XXX If we change the order of the following two instructions, the test
-  --     no longer fails.
+--  iobConnect (Hostname "localhost") "hsFoo"
   iobGetValue pvPath >>= print
   pv <- iobAccess pvPath
   testGet "eins"
