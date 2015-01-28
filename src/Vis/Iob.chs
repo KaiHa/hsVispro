@@ -168,9 +168,10 @@ getStringFromPv :: IobPV -> IO String
 getStringFromPv pv =
     {# get IobPV->u.s.val #} pv >>= peekCAString
 
-getStateFromPV :: IobPV -> IO [Word32]
-getStateFromPV pv =
-    {# get IobPV->state #} pv >>= peekArray 3 >>= return . map fromIntegral
+getStateFromPV :: IobPV -> IO IobState
+getStateFromPV pv = do
+    [a,b,c] <- {# get IobPV->state #} pv >>= peekArray 3
+    return $ IobState (toPvState a) (fromIntegral b) (fromIntegral c)
 
 cintToReturnCode :: CInt -> ReturnCode
 cintToReturnCode err = if (err == 0) then Success else ErrorCode err
@@ -201,7 +202,7 @@ iobGetValue path = do
     val <- getValueFromPv pv
     state <- getStateFromPV pv
     vikRelease pv [] nullFunPtr nullPtr
-    return (val, IobState (toPvState $ state !! 0) (state !! 1) (state !! 2))
+    return (val, state)
 
 
 -- |Get a PV handle from the IOBase server.
