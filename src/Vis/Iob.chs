@@ -15,7 +15,7 @@ where
 
 import Control.Applicative ((<$>))
 import Control.Monad       (void, when)
-import Data.Bits ((.|.))
+import Data.Bits ((.|.), (.&.))
 import Data.Int  (Int64)
 import Data.Word (Word32)
 import Foreign.C
@@ -30,7 +30,7 @@ import Foreign.Storable
 data IobValue = IobInt Int64 | IobFloat Double | IobString String | IobUnknownType
     deriving (Show, Eq)
 
-data IobState = IobState Word32 Word32 Word32 deriving (Show, Eq)
+data IobState = IobState [PvState] Word32 Word32 deriving (Show, Eq)
 
 data PvHandle = PvHandle IobPV [IoMask] (FunPtr IobEventProc) (Ptr ())
 
@@ -63,6 +63,40 @@ newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
     , IOB_MASK_ACCNT   as IoMaskAccnt
     , IOB_MASK_ADVANCE as IoMaskAdvance
     } deriving (Eq, Show) #}
+
+
+{# enum define PvState
+    { IF_ERROR        as PvStateError
+    , IF_START        as PVStateErrorNotReady
+    , IF_NOCONN       as PvStateErrorNoConnection
+    , IF_CONNLOST     as PvStateErrorConnectionLost
+    , IF_PVLOST       as PvStateErrorPvLost
+    , IF_FORCED       as PvStateForced
+    , IF_PROVIDED     as PvStateProvided
+    , IF_USERPROVIDED as PvStateUSERPROVIDED
+    , IF_REPLACE1     as PvStateREPLACE1
+    , IF_REPLACE2     as PvStateREPLACE2
+    , IF_REPLACE3     as PvStateREPLACE3
+    , IF_MBINVALID    as PvStateMBINVALID
+    , IF_MBLOWER      as PvStateUnderRange
+    , IF_MBUPPER      as PvStateOverRange
+    , IF_SAVEINIT     as PvStateSaveInit
+    , IF_LICBLK       as PvStateLicBlk
+    , IF_REMOTE       as PvStateRemote
+    , IF_VOTED        as PvStateVoted
+    , IF_PULSE        as PvStatePulse
+    , IF_BACKSEND     as PvStateBackSend
+    , IF_BINARY       as PvStateBinary
+    , IF_RDONLY       as PvStateReadonly
+    } deriving (Eq, Show, Ord) #}
+
+-- |Convert an integer into a list of 'PVState'
+--
+-- >>> toPvState 5
+-- [PvStateError,PvStateNoConnection]
+toPvState :: Integral a => a -> [PvState]
+toPvState n = [x | x <- [PvStateError .. ], (fromEnum x .&. n') /= 0]
+    where n' = fromIntegral n
 
 ored :: Integral a => [IoMask] -> a
 ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
@@ -167,7 +201,7 @@ iobGetValue path = do
     val <- getValueFromPv pv
     state <- getStateFromPV pv
     vikRelease pv [] nullFunPtr nullPtr
-    return (val, IobState (state !! 0) (state !! 1) (state !! 2))
+    return (val, IobState (toPvState $ state !! 0) (state !! 1) (state !! 2))
 
 
 -- |Get a PV handle from the IOBase server.
