@@ -2,6 +2,7 @@
 module Vis.Iob
 ( IobValue(..)
 , IoMask
+, Path(..)
 , iobAccess
 , iobConnect
 , iobGetValue
@@ -107,21 +108,20 @@ foreign import ccall "wrapper"
 
 
 {# fun VikConnect as ^
-    { toCStr* `Hostname', `String' } -> `SkLine' #}
-    where toCStr a = withCString (unHostname a)
+    { withHostname* `Hostname', `String' } -> `SkLine' #}
 
 {# fun VikWaitAccess as ^
-    {      `String'
-    , ored `[IoMask]'
-    , id   `FunPtr IobEventProc'
-    , id   `(Ptr ())'
+    { withPath* `Path'
+    , ored      `[IoMask]'
+    , id        `FunPtr IobEventProc'
+    , id        `(Ptr ())'
     } -> `IobPV' id #}
 
 {# fun VikAccess as ^
-    {      `String'
-    , ored `[IoMask]'
-    , id   `FunPtr IobEventProc'
-    , id   `(Ptr ())'
+    { withPath* `Path'
+    , ored      `[IoMask]'
+    , id        `FunPtr IobEventProc'
+    , id        `(Ptr ())'
     } -> `IobPV' id #}
 
 {# fun VikRelease as ^
@@ -180,15 +180,17 @@ getValueFromPv pv =
         otherwise -> return $ IobUnknownType
 
 
-iobConnect :: Hostname -> String -> IO SkLine
+-- |A connect is usually not necessary.
+iobConnect :: Hostname -> String -> IO (Maybe SkLine)
 iobConnect h n = do
     l <- vikConnect h n
-    -- XXX Do we need to do more here?
-    return l
+    if (l == SkLine nullPtr)
+    then return Nothing
+    else return $ Just l
 
 
 -- |Request a value from the IOBase server.
-iobGetValue :: String -> IO (IobValue, IobState)
+iobGetValue :: Path -> IO (IobValue, IobState)
 iobGetValue path = do
     step -- XXX where to put this?
     pv <- vikWaitAccess path [] nullFunPtr nullPtr
@@ -200,7 +202,7 @@ iobGetValue path = do
 
 -- |Get a PV handle from the IOBase server.
 -- You must free the 'PvHandle' with 'iobRelease' if you no longer need it.
-iobAccess:: String -> IO PvHandle
+iobAccess:: Path -> IO PvHandle
 iobAccess path = do
     step -- XXX where to put this?
     pv <- vikAccess path [] nullFunPtr nullPtr
@@ -240,7 +242,7 @@ iobSetState (PvHandle pv _ _ _) w val = do
 
 -- |Subscribe to a value from the IOBase server.
 -- You must end the subscription and free the 'PvHandle' with 'iobRelease'.
-iobSubscribeValue :: String -> IobEventProc -> IO PvHandle
+iobSubscribeValue :: Path -> IobEventProc -> IO PvHandle
 iobSubscribeValue path callback = do
     step
     fp <- mkIobEventProc callback

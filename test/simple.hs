@@ -19,7 +19,7 @@ main = do
   iobSetValue pv $ IobString "FERTIG"
   iobRelease pv
   where
-    pvPath = "/Project/DP"
+    pvPath = Path "/Project/DP"
     testGet a = do
       pioSet pvPath a
       (IobString b, _) <- iobGetValue pvPath
@@ -31,10 +31,10 @@ main = do
       putStrLn $ show a ++ " == " ++ show b ++ " ?"
       when (a /= b) exitFailure
 
-pioSet :: String -> String -> IO String
-pioSet p v = readProcess "/opt/vispro/bin/pio" ["set", p, v] ""
+pioSet :: Path -> String -> IO String
+pioSet (Path p) v = readProcess "/opt/vispro/bin/pio" ["set", p, v] ""
 
-pioGet :: String -> IO String
-pioGet p =
+pioGet :: Path -> IO String
+pioGet (Path p) =
     takeWhile (/= '\'') <$> dropWhile (== '\'')
     <$> readProcess "/opt/vispro/bin/pio" ["getval", p] ""
