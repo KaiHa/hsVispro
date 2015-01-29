@@ -1,7 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface, CPP #-}
 module Vis.Iob
-( Hostname(..)
-, IobValue(..)
+( IobValue(..)
 , IoMask
 , iobAccess
 , iobConnect
@@ -23,9 +22,9 @@ import Foreign.C.String
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
+import Vis.Serv
 
 #include <VisIOB.h>
-#include <VisServ.h>
 
 data IobValue = IobInt Int64 | IobFloat Double | IobString String | IobUnknownType
     deriving (Show, Eq)
@@ -37,8 +36,6 @@ data PvHandle = PvHandle IobPV [IoMask] (FunPtr IobEventProc) (Ptr ())
 data ReturnCode = Success | ErrorCode CInt deriving (Show, Eq)
 
 data UserWord = UserWord1 | UserWord2 deriving (Show, Eq)
-
-newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
 
 {# enum define PvType
     { IO_UNKNOWN as PvUnknown
@@ -103,7 +100,7 @@ ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 
 {# pointer *IobPV    newtype #}
 {# pointer *IOBEvent newtype #}
-{# pointer *SkLine   newtype #}
+{# pointer *SkLine   newtype nocode #}
 type IobEventProc = Ptr () ->  IobPV -> Ptr () -> IO ()
 foreign import ccall "wrapper"
     mkIobEventProc :: IobEventProc -> IO (FunPtr IobEventProc)
@@ -147,10 +144,6 @@ foreign import ccall "wrapper"
 
 step :: IO ()
 step = {# call VskStep as ^ #}
-
--- XXX do we need this?
-vskInit :: IO ()
-vskInit = {# call VskInitLoop as ^ #}
 
 getPvType :: IobPV -> IO PvType
 getPvType pv =

@@ -16,16 +16,15 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Vis.Iob
-  -- other-modules:
+  exposed-modules:     Vis.Iob, Vis.Reg
+  other-modules:       Vis.Serv
   other-extensions:    ForeignFunctionInterface, CPP
   build-depends:       base >=4.6 && <4.7
   hs-source-dirs:      src
   build-tools:         c2hs >= 0.21
   default-language:    Haskell2010
   include-dirs:        /opt/vispro/include
-  extra-libraries:     VisIob
-                       , VisServ
+  extra-libraries:     VisServ, VisIob, VisReg
   extra-lib-dirs:      /opt/vispro/lib
 
 Test-Suite simple-test
