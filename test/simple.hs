@@ -1,13 +1,16 @@
 import Control.Applicative ((<$>))
 import Control.Concurrent  (threadDelay)
 import Control.Monad       (when)
+import Data.Maybe          (fromJust)
 import System.Exit         (exitFailure)
 import System.Process      (readProcess)
 import Vis.Iob
+import Vis.Reg
 
 main :: IO ()
 main = do
---  iobConnect (Hostname "localhost") "hsFoo"
+  l <- regConnect (Hostname "localhost") "hsFoo"
+  regListPaths (fromJust l) (Path "/") >>= print
   iobGetValue pvPath >>= print
   pv <- iobAccess pvPath
   testGet "eins"

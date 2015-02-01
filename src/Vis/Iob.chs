@@ -1,6 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, CPP #-}
 module Vis.Iob
-( IobValue(..)
+( Hostname(..)
+, IobValue(..)
 , IoMask
 , Path(..)
 , iobAccess
