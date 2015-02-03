@@ -1,0 +1,23 @@
+Organisator 'hsVisproTest' 0xffff 0xffff
+{
+}
+Datapoint 'hsVisproTest/StringPV' 0xffff 0xffff
+{
+	Set
+	{
+		'VarType':STRING='STRING'
+		'Greeting':STRING='hallo welt'
+		'Integer':LONG='93'
+		'Double':DOUBLE='3.14159'
+		'Bool':BOOL='True'
+	}
+	LinkStatic '/_IOBASE'
+	{
+	}
+}
+Datapoint 'hsVisproTest/IntPV' 0xffff 0xffff
+{
+	LinkStatic '/_IOBASE'
+	{
+	}
+}
