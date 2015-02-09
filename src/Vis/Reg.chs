@@ -2,6 +2,8 @@
 module Vis.Reg
 ( Hostname(..)
 , Path(..)
+, RegObj(..)
+, VSet(..)
 , regConnect
 , regListPaths
 , regListVSets

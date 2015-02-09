@@ -12,9 +12,22 @@ main :: IO ()
 main = do
   regImport =<< getDataFileName "test/test.dat"
   l <- regConnect (Hostname "localhost") "hsFoo"
-  regListPaths (fromJust l) (Path "/hsVisproTest") >>= print
-  -- TODO check return value
-  regListVSets (fromJust l) (Path "/hsVisproTest") >>= print
+  paths <- regListPaths (fromJust l) (Path "/hsVisproTest")
+  print paths
+  assertEqual (length paths) 2 "paths has not the expected length"
+  assertEqual paths [ Path "/hsVisproTest/StringPV"
+                    , Path "/hsVisproTest/IntPV"
+                    ] "paths has wrong value"
+  vsets <- regListVSets (fromJust l) (Path "/hsVisproTest")
+  assertEqual vsets [RegObj (Path "/hsVisproTest/StringPV")
+                            [VSetBool   "Bool"     True
+                            ,VSetDouble "Double"   3.14159
+                            ,VSetInt    "Integer"  93
+                            ,VSetString "Greeting" "hallo welt"
+                            ,VSetString "VarType"  "STRING"
+                            ]
+                    ,RegObj (Path "/hsVisproTest/IntPV") []
+                    ] "vsets has wrong value"
   iobGetValue pvPath >>= print
   pv <- iobAccess pvPath
   testGet "eins"
@@ -30,13 +43,11 @@ main = do
     testGet a = do
       pioSet pvPath a
       (IobString b, _) <- iobGetValue pvPath
-      putStrLn $ show a ++ " == " ++ show b ++ " ?"
-      when (a /= b) exitFailure
+      assertEqual a b "get returned wrong value"
     testSet pv a = do
       iobSetValue pv $ IobString a
       b <- pioGet pvPath
-      putStrLn $ show a ++ " == " ++ show b ++ " ?"
-      when (a /= b) exitFailure
+      assertEqual a b "set had not written successful"
 
 pioSet :: Path -> String -> IO ()
 pioSet (Path p) v = callProcess "/opt/vispro/bin/pio" ["set", p, v]
@@ -49,5 +60,12 @@ pioGet (Path p) =
 regImport :: String -> IO ()
 regImport a = callProcess "/opt/vispro/bin/reg.imp" ["localhost", a, "/"]
 
+regCheck :: String -> IO String
+regCheck a = readProcess "/opt/vispro/bin/reg.check" [] (a ++ "\nexit\n")
+
 callProcess :: FilePath -> [String] -> IO ()
 callProcess p as = void $ readProcess p as ""
+
+assertEqual :: (Eq a, Show a) => a -> a -> String -> IO ()
+assertEqual a b m =
+  when (a /= b) $ error $ (show a) ++ " == " ++ (show b) ++ "--> failure\n" ++ m
