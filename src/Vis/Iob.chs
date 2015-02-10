@@ -2,8 +2,8 @@
 module Vis.Iob
 ( Hostname(..)
 , IobEventType(..)
+, IobMask
 , IobValue(..)
-, IoMask
 , Path(..)
 , iobAccess
 , iobConnect
@@ -35,7 +35,7 @@ data IobValue = IobInt Int64 | IobFloat Double | IobString String | IobUnknownTy
 
 data IobState = IobState [PvState] Word32 Word32 deriving (Show, Eq)
 
-data PvHandle = PvHandle IobPV [IoMask] (FunPtr IobEventProc) (Ptr ())
+data PvHandle = PvHandle IobPV [IobMask] (FunPtr IobEventProc) (Ptr ())
 
 data ReturnCode = Success | ErrorCode CInt deriving (Show, Eq)
 
@@ -48,21 +48,21 @@ data UserWord = UserWord1 | UserWord2 deriving (Show, Eq)
     , IO_STRING  as PvString
     } deriving (Eq, Show) #}
 
-{# enum define IoMask
-    { IOB_MASK_ACCESS  as IoMaskAccess
-    , IOB_MASK_CHANGE  as IoMaskChange
-    , IOB_MASK_ICHANGE as IoMaskIChange
-    , IOB_MASK_FCHANGE as IoMaskFChange
-    , IOB_MASK_SCHANGE as IoMaskSChange
-    , IOB_MASK_STATE   as IoMaskState
-    , IOB_MASK_CRONO   as IoMaskCrono
-    , IOB_MASK_ICRONO  as IoMaskICrono
-    , IOB_MASK_FCRONO  as IoMaskFCrono
-    , IOB_MASK_SCRONO  as IoMaskSCrono
-    , IOB_MASK_CHGOREP as IoMaskChgorep
-    , IOB_MASK_WEIGHT  as IoMaskWeight
-    , IOB_MASK_ACCNT   as IoMaskAccnt
-    , IOB_MASK_ADVANCE as IoMaskAdvance
+{# enum define IobMask
+    { IOB_MASK_ACCESS  as IobMaskAccess
+    , IOB_MASK_CHANGE  as IobMaskChange
+    , IOB_MASK_ICHANGE as IobMaskIChange
+    , IOB_MASK_FCHANGE as IobMaskFChange
+    , IOB_MASK_SCHANGE as IobMaskSChange
+    , IOB_MASK_STATE   as IobMaskState
+    , IOB_MASK_CRONO   as IobMaskCrono
+    , IOB_MASK_ICRONO  as IobMaskICrono
+    , IOB_MASK_FCRONO  as IobMaskFCrono
+    , IOB_MASK_SCRONO  as IobMaskSCrono
+    , IOB_MASK_CHGOREP as IobMaskChgorep
+    , IOB_MASK_WEIGHT  as IobMaskWeight
+    , IOB_MASK_ACCNT   as IobMaskAccnt
+    , IOB_MASK_ADVANCE as IobMaskAdvance
     } deriving (Eq, Show) #}
 
 {# enum define IobEventType
@@ -122,7 +122,7 @@ toPvState :: Integral a => a -> [PvState]
 toPvState n = [x | x <- [PvStateError .. ], (fromEnum x .&. n') /= 0]
     where n' = fromIntegral n
 
-ored :: Integral a => [IoMask] -> a
+ored :: Integral a => [IobMask] -> a
 ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 
 {# pointer *IobPV    newtype #}
@@ -138,21 +138,21 @@ foreign import ccall "wrapper"
 
 {# fun VikWaitAccess as ^
     { withPath* `Path'
-    , ored      `[IoMask]'
+    , ored      `[IobMask]'
     , id        `FunPtr IobEventProc'
     , id        `(Ptr ())'
     } -> `IobPV' id #}
 
 {# fun VikAccess as ^
     { withPath* `Path'
-    , ored      `[IoMask]'
+    , ored      `[IobMask]'
     , id        `FunPtr IobEventProc'
     , id        `(Ptr ())'
     } -> `IobPV' id #}
 
 {# fun VikRelease as ^
     {      `IobPV'
-    , ored `[IoMask]'
+    , ored `[IobMask]'
     , id   `FunPtr IobEventProc'
     , id   `(Ptr ())'
     } -> `()' id #}
@@ -278,6 +278,6 @@ iobSubscribeValue path callback = do
     pv <- vikAccess path mask fp nullPtr
     return (PvHandle pv mask fp nullPtr)
     where
-      mask    = [IoMaskChange]
+      mask    = [IobMaskChange]
       callback' _ a b = do b' <- {# get IOBEvent->type #} b
                            callback a $ toEnum $ fromIntegral b'
