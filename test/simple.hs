@@ -1,7 +1,9 @@
 import Control.Applicative ((<$>))
 import Control.Concurrent  (threadDelay)
 import Control.Monad       (void, when)
+import Data.IORef
 import Data.Maybe          (fromJust)
+import Foreign.Ptr         (Ptr)
 import System.Exit         (exitFailure, ExitCode(..))
 import System.Process      (readProcess, readProcessWithExitCode)
 import Vis.Iob
@@ -29,6 +31,8 @@ main = do
                     ,RegObj (Path "/hsVisproTest/IntPV") []
                     ] "vsets has wrong value"
   iobGetValue pvPath >>= print
+  recv <- newIORef []
+  subscription <- iobSubscribeValue (Path "/Project/DP") (updateValue recv)
   pv <- iobAccess pvPath
   testGet "eins"
   testGet "zwo"
@@ -38,6 +42,16 @@ main = do
   testSet pv "sechs"
   iobSetValue pv $ IobString "FERTIG"
   iobRelease pv
+  iobRelease subscription
+  readIORef recv >>= \a ->
+    assertEqual a [(IobString "FERTIG","/Project/DP", IobEventChangeStrg)
+                  ,(IobString "sechs", "/Project/DP", IobEventChangeStrg)
+                  ,(IobString "fuenf", "/Project/DP", IobEventChangeStrg)
+                  ,(IobString "vier",  "/Project/DP", IobEventChangeStrg)
+                  ,(IobString "drei",  "/Project/DP", IobEventChangeStrg)
+                  ,(IobString "zwo",   "/Project/DP", IobEventChangeStrg)
+                  ,(IobString "eins",  "/Project/DP", IobEventChangeStrg)
+                  ] "received subscribed values are wrong"
   where
     pvPath = Path "/Project/DP"
     testGet a = do
@@ -48,6 +62,10 @@ main = do
       iobSetValue pv $ IobString a
       b <- pioGet pvPath
       assertEqual a b "set had not written successful"
+    updateValue ref pv e = do
+      val       <- getValueFromPv pv
+      Path path <- getPathFromPv pv
+      readIORef ref >>= writeIORef ref . ((val, path, e):)
 
 pioSet :: Path -> String -> IO ()
 pioSet (Path p) v = callProcess "/opt/vispro/bin/pio" ["set", p, v]

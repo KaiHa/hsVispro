@@ -1,6 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, CPP #-}
 module Vis.Iob
 ( Hostname(..)
+, IobEventType(..)
 , IobValue(..)
 , IoMask
 , Path(..)
@@ -10,6 +11,7 @@ module Vis.Iob
 , iobRelease
 , iobSetValue
 , iobSubscribeValue
+, getPathFromPv
 , getValueFromPv
 )
 where
@@ -63,6 +65,29 @@ data UserWord = UserWord1 | UserWord2 deriving (Show, Eq)
     , IOB_MASK_ADVANCE as IoMaskAdvance
     } deriving (Eq, Show) #}
 
+{# enum define IobEventType
+    { IOB_ACCESS         as IobEventAccess
+    , IOB_NOACCESS       as IobEventNoAccess
+    , IOB_CHANGE_INT     as IobEventChangeInt
+    , IOB_CHANGE_FLOAT   as IobEventChangeFloat
+    , IOB_CHANGE_STRG    as IobEventChangeStrg
+    , IOB_STATE          as IobEventState
+    , IOB_RECONF         as IobEventReconf
+    , IOB_NEWNAME        as IobEventNewName
+    , IOB_CLEAR_RESPONSE as IobEventClearResponse
+    , IOB_CRONO_INT      as IobEventCronoInt
+    , IOB_CRONO_FLOAT    as IobEventCronoFloat
+    , IOB_CRONO_STRG     as IobEventCronoStrg
+    , IOB_CHGOREP_INT    as IobEventChGoRepInt
+    , IOB_CHGOREP_FLOAT  as IobEventChGoRepFloat
+    , IOB_CHGOREP_STRG   as IobEventChGoRepStrg
+    , IOB_SET_MASTER     as IobEventSetMaster
+    , IOB_CHANGE_WEIGHT  as IobEventChangeWeight
+    , IOB_CHANGE_ACCNT   as IobEventChangeAccnt
+    , IOB_INFOREQ        as IobEventInfoReq
+    , IOB_LIST_FORCED    as IobEventListForced
+    , IOB_LIST_ALL       as IobEventListAll
+    } deriving (Eq, Show) #}
 
 {# enum define PvState
     { IF_ERROR        as PvStateError
@@ -101,9 +126,9 @@ ored :: Integral a => [IoMask] -> a
 ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 
 {# pointer *IobPV    newtype #}
-{# pointer *IOBEvent newtype #}
+{# pointer *IOBEvent #}
 {# pointer *SkLine   newtype nocode #}
-type IobEventProc = Ptr () ->  IobPV -> Ptr () -> IO ()
+type IobEventProc = Ptr () ->  IobPV -> IOBEvent -> IO ()
 foreign import ccall "wrapper"
     mkIobEventProc :: IobEventProc -> IO (FunPtr IobEventProc)
 
@@ -180,6 +205,9 @@ getValueFromPv pv =
         PvString  -> IobString <$> getStringFromPv pv
         otherwise -> return $ IobUnknownType
 
+-- |Extract the name from an IobPv.
+getPathFromPv :: IobPV -> IO Path
+getPathFromPv pv = Path <$> (peekCAString =<< {# get IobPV->name #} pv)
 
 -- |A connect is usually not necessary.
 iobConnect :: Hostname -> String -> IO (Maybe SkLine)
@@ -243,10 +271,13 @@ iobSetState (PvHandle pv _ _ _) w val = do
 
 -- |Subscribe to a value from the IOBase server.
 -- You must end the subscription and free the 'PvHandle' with 'iobRelease'.
-iobSubscribeValue :: Path -> IobEventProc -> IO PvHandle
+iobSubscribeValue :: Path -> (IobPV -> IobEventType -> IO ()) -> IO PvHandle
 iobSubscribeValue path callback = do
     step
-    fp <- mkIobEventProc callback
+    fp <- mkIobEventProc callback'
     pv <- vikAccess path mask fp nullPtr
     return (PvHandle pv mask fp nullPtr)
-    where mask    = [IoMaskChange]
+    where
+      mask    = [IoMaskChange]
+      callback' _ a b = do b' <- {# get IOBEvent->type #} b
+                           callback a $ toEnum $ fromIntegral b'
