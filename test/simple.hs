@@ -32,7 +32,7 @@ main = do
                     ] "vsets has wrong value"
   iobGetValue pvPath >>= print
   recv <- newIORef []
-  subscription <- iobSubscribeValue (Path "/Project/DP") (updateValue recv)
+  subscription <- iobSubscribeValue (Path "/hsVisproTest/StringPV") (updateValue recv)
   pv <- iobAccess pvPath
   testGet "eins"
   testGet "zwo"
@@ -44,16 +44,16 @@ main = do
   iobRelease pv
   iobRelease subscription
   readIORef recv >>= \a ->
-    assertEqual a [(IobString "FERTIG","/Project/DP", IobEventChangeStrg)
-                  ,(IobString "sechs", "/Project/DP", IobEventChangeStrg)
-                  ,(IobString "fuenf", "/Project/DP", IobEventChangeStrg)
-                  ,(IobString "vier",  "/Project/DP", IobEventChangeStrg)
-                  ,(IobString "drei",  "/Project/DP", IobEventChangeStrg)
-                  ,(IobString "zwo",   "/Project/DP", IobEventChangeStrg)
-                  ,(IobString "eins",  "/Project/DP", IobEventChangeStrg)
+    assertEqual a [(IobString "FERTIG","/hsVisproTest/StringPV", IobEventChangeStrg)
+                  ,(IobString "sechs", "/hsVisproTest/StringPV", IobEventChangeStrg)
+                  ,(IobString "fuenf", "/hsVisproTest/StringPV", IobEventChangeStrg)
+                  ,(IobString "vier",  "/hsVisproTest/StringPV", IobEventChangeStrg)
+                  ,(IobString "drei",  "/hsVisproTest/StringPV", IobEventChangeStrg)
+                  ,(IobString "zwo",   "/hsVisproTest/StringPV", IobEventChangeStrg)
+                  ,(IobString "eins",  "/hsVisproTest/StringPV", IobEventChangeStrg)
                   ] "received subscribed values are wrong"
   where
-    pvPath = Path "/Project/DP"
+    pvPath = Path "/hsVisproTest/StringPV"
     testGet a = do
       pioSet pvPath a
       (IobString b, _) <- iobGetValue pvPath
