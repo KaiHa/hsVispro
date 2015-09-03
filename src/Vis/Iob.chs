@@ -5,10 +5,12 @@ module Vis.Iob
 , IobMask
 , IobValue(..)
 , Path(..)
+, TimeSpan(..)
 , iobAccess
 , iobConnect
 , iobGetValue
 , iobRelease
+, iobPulseValue
 , iobSetValue
 , iobSubscribeValue
 , getPathFromPv
@@ -20,7 +22,7 @@ import Control.Applicative ((<$>))
 import Control.Monad       (void, when)
 import Data.Bits ((.|.), (.&.))
 import Data.Int  (Int64)
-import Data.Word (Word32)
+import Data.Word (Word32, Word64)
 import Foreign.C
 import Foreign.C.String
 import Foreign.Marshal.Array
@@ -40,6 +42,8 @@ data PvHandle = PvHandle IobPV [IobMask] (FunPtr IobEventProc) (Ptr ())
 data ReturnCode = Success | ErrorCode CInt deriving (Show, Eq)
 
 data UserWord = UserWord1 | UserWord2 deriving (Show, Eq)
+
+data TimeSpan = Milliseconds Word64 deriving (Show, Eq)
 
 {# enum define PvType
     { IO_UNKNOWN as PvUnknown
@@ -168,6 +172,13 @@ foreign import ccall "wrapper"
     , `CULong'
     } -> `CInt' id #}
 
+{# fun VikSetPulse as ^
+    { `IobPV'
+    , `String'
+    , `CULong'
+    , `String'
+    } -> `CInt' id #}
+
 step :: IO ()
 step = {# call VskStep as ^ #}
 
@@ -256,6 +267,19 @@ iobSetValue (PvHandle pv _ _ _) val = do
         set (IobString v) = vikSetVal pv v
         set (IobInt    v) = vikSetVal pv $ show v
         set (IobFloat  v) = vikSetVal pv $ show v
+
+
+-- |Write a value to the IOBase server.
+iobPulseValue :: PvHandle -> IobValue -> TimeSpan -> IobValue -> IO ReturnCode
+iobPulseValue (PvHandle pv _ _ _) val (Milliseconds ms) val' = do
+    err <- pulse val val'
+    step
+    return $ cintToReturnCode err
+    where
+        t = fromIntegral ms
+        pulse (IobString v) (IobString v') = vikSetPulse pv v        t v'
+        pulse (IobInt    v) (IobInt    v') = vikSetPulse pv (show v) t (show v')
+        pulse (IobFloat  v) (IobFloat  v') = vikSetPulse pv (show v) t (show v')
 
 
 -- |Write a user status to the IOBase server.
