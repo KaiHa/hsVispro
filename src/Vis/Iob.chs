@@ -33,17 +33,18 @@ import Vis.Serv
 #include <VisIOB.h>
 
 data IobValue = IobInt Int64 | IobFloat Double | IobString String | IobUnknownType
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
-data IobState = IobState [PvState] Word32 Word32 deriving (Show, Eq)
+data IobState = IobState [PvState] Word32 Word32 deriving (Show, Eq, Ord)
 
 data PvHandle = PvHandle IobPV [IobMask] (FunPtr IobEventProc) (Ptr ())
+    deriving (Show, Eq, Ord)
 
-data ReturnCode = Success | ErrorCode CInt deriving (Show, Eq)
+data ReturnCode = Success | ErrorCode CInt deriving (Show, Eq, Ord)
 
-data UserWord = UserWord1 | UserWord2 deriving (Show, Eq)
+data UserWord = UserWord1 | UserWord2 deriving (Show, Eq, Ord)
 
-data TimeSpan = Milliseconds Word64 deriving (Show, Eq)
+data TimeSpan = Milliseconds Word64 deriving (Show, Eq, Ord)
 
 {# enum define PvType
     { IO_UNKNOWN as PvUnknown
@@ -67,7 +68,7 @@ data TimeSpan = Milliseconds Word64 deriving (Show, Eq)
     , IOB_MASK_WEIGHT  as IobMaskWeight
     , IOB_MASK_ACCNT   as IobMaskAccnt
     , IOB_MASK_ADVANCE as IobMaskAdvance
-    } deriving (Eq, Show) #}
+    } deriving (Eq, Show, Ord) #}
 
 {# enum define IobEventType
     { IOB_ACCESS         as IobEventAccess
@@ -129,7 +130,7 @@ toPvState n = [x | x <- [PvStateError .. ], (fromEnum x .&. n') /= 0]
 ored :: Integral a => [IobMask] -> a
 ored = fromIntegral . foldl (\a b -> a .|. fromEnum b) 0
 
-{# pointer *IobPV    newtype #}
+{# pointer *IobPV    newtype  #} deriving (Eq, Ord, Show)
 {# pointer *IOBEvent #}
 {# pointer *SkLine   newtype nocode #}
 type IobEventProc = Ptr () ->  IobPV -> IOBEvent -> IO ()
