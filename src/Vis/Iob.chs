@@ -3,8 +3,10 @@ module Vis.Iob
 ( Hostname(..)
 , IobEventType(..)
 , IobMask
+, IobState(..)
 , IobValue(..)
 , Path(..)
+, PvState(..)
 , TimeSpan(..)
 , iobAccess
 , iobConnect
