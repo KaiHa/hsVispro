@@ -7,6 +7,7 @@ module Vis.Iob
 , IobValue(..)
 , Path(..)
 , PvState(..)
+, ReturnCode(..)
 , TimeSpan(..)
 , iobAccess
 , iobConnect
