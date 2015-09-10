@@ -15,6 +15,7 @@ module Vis.Iob
 , iobRelease
 , iobPulseValue
 , iobSetValue
+, iobStep
 , iobSubscribeValue
 , getPathFromPv
 , getValueFromPv
@@ -183,8 +184,8 @@ foreign import ccall "wrapper"
     , `String'
     } -> `CInt' id #}
 
-step :: IO ()
-step = {# call VskStep as ^ #}
+iobStep :: IO ()
+iobStep = {# call VskStep as ^ #}
 
 getPvType :: IobPV -> IO PvType
 getPvType pv =
@@ -236,7 +237,7 @@ iobConnect h n = do
 -- |Request a value from the IOBase server.
 iobGetValue :: Path -> IO (IobValue, IobState)
 iobGetValue path = do
-    step -- XXX where to put this?
+    iobStep -- XXX where to put this?
     pv <- vikWaitAccess path [] nullFunPtr nullPtr
     val <- getValueFromPv pv
     state <- getStateFromPV pv
@@ -248,7 +249,7 @@ iobGetValue path = do
 -- You must free the 'PvHandle' with 'iobRelease' if you no longer need it.
 iobAccess:: Path -> IO PvHandle
 iobAccess path = do
-    step -- XXX where to put this?
+    iobStep -- XXX where to put this?
     pv <- vikAccess path [] nullFunPtr nullPtr
     return (PvHandle pv [] nullFunPtr nullPtr)
 
@@ -258,14 +259,14 @@ iobRelease :: PvHandle -> IO ()
 iobRelease (PvHandle pv mask fp arg) = do
     vikRelease pv mask fp arg
     when (fp /= nullFunPtr) $ freeHaskellFunPtr fp
-    step -- XXX where to put this?
+    iobStep -- XXX where to put this?
 
 
 -- |Write a value to the IOBase server.
 iobSetValue :: PvHandle -> IobValue -> IO ReturnCode
 iobSetValue (PvHandle pv _ _ _) val = do
     err <- set val
-    step
+    iobStep
     return $ cintToReturnCode err
     where
         set (IobString v) = vikSetVal pv v
@@ -277,7 +278,7 @@ iobSetValue (PvHandle pv _ _ _) val = do
 iobPulseValue :: PvHandle -> IobValue -> TimeSpan -> IobValue -> IO ReturnCode
 iobPulseValue (PvHandle pv _ _ _) val (Milliseconds ms) val' = do
     err <- pulse val val'
-    step
+    iobStep
     return $ cintToReturnCode err
     where
         t = fromIntegral ms
@@ -290,7 +291,7 @@ iobPulseValue (PvHandle pv _ _ _) val (Milliseconds ms) val' = do
 iobSetState :: PvHandle -> UserWord -> Word32 -> IO ReturnCode
 iobSetState (PvHandle pv _ _ _) w val = do
     err <- vikSetUsrState pv n $ CULong val
-    step
+    iobStep
     return $ cintToReturnCode err
     where toCInt UserWord1 = 0
           toCInt UserWord2 = 1
@@ -301,7 +302,7 @@ iobSetState (PvHandle pv _ _ _) w val = do
 -- You must end the subscription and free the 'PvHandle' with 'iobRelease'.
 iobSubscribeValue :: Path -> (IobPV -> IobEventType -> IO ()) -> IO PvHandle
 iobSubscribeValue path callback = do
-    step
+    iobStep
     fp <- mkIobEventProc callback'
     pv <- vikAccess path mask fp nullPtr
     return (PvHandle pv mask fp nullPtr)
