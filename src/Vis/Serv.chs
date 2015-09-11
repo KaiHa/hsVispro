@@ -1,4 +1,6 @@
-{-# LANGUAGE ForeignFunctionInterface, CPP #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Vis.Serv
 ( Hostname(..)
 , Path(..)
@@ -8,13 +10,14 @@ module Vis.Serv
 )
 where
 
+import Data.String
 import Foreign.Ptr
 import Foreign.C
 
 #include <VisServ.h>
 
-newtype Hostname = Hostname { unHostname :: String } deriving (Eq, Show)
-newtype Path     = Path     { unPath     :: String } deriving (Eq, Show)
+newtype Hostname = Hostname { unHostname :: String } deriving (Eq, IsString, Show)
+newtype Path     = Path     { unPath     :: String } deriving (Eq, IsString, Show)
 
 {# pointer *SkLine newtype #} deriving (Eq)
 
