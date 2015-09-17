@@ -59,9 +59,11 @@ main = do
       (IobString b, _) <- iobGetValue pvPath
       assertEqual a b "get returned wrong value"
     testSet pv a = do
-      iobSetValue pv $ IobString a
-      b <- pioGet pvPath
-      assertEqual a b "set had not written successful"
+      iobSetValue pv (IobString a) >>= \r -> assertEqual Success r ("set returned " ++ show r)
+      (IobString b, _) <- iobGetValue pvPath
+      assertEqual a b "set returned with success, but get did not work"
+      c <- pioGet pvPath
+      assertEqual a c "set had not written successful"
     updateValue ref pv e = do
       val       <- getValueFromPv pv
       Path path <- getPathFromPv pv
