@@ -105,7 +105,6 @@ regGetVSets = walk []
                TypeByte   -> (\(CChar a)   -> VSetByte name a )       <$> {# get RegVSet->v.cval      #} r
                TypeLong   -> VSetInt    name . from <$> (peekArray 1  =<< {# get RegVSet->v.la        #} r)
                TypeString -> VSetString name        <$> (peekCAString =<< {# get RegVSet->v.bval.data #} r)
-               _          -> return $ VSetUnknown name
            walk (vset : xs) next
            where
              from = fromIntegral . head
