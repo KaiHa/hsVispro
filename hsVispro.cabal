@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                hsVispro
-version:             0.2.1.5
+version:             0.2.2.1
 synopsis:            Haskell Vispro/VisTwo bindings
 -- description:
 license:             BSD3

@@ -9,11 +9,16 @@ module Vis.Iob
 , PvState(..)
 , ReturnCode(..)
 , TimeSpan(..)
+, UserWord(..)
 , iobAccess
 , iobConnect
 , iobGetValue
 , iobRelease
+, iobPulseNamedValue
 , iobPulseValue
+, iobSetNamedState
+, iobSetNamedValue
+, iobSetState
 , iobSetValue
 , iobStep
 , iobSubscribeValue
@@ -171,14 +176,32 @@ foreign import ccall "wrapper"
     , `String'
     } -> `CInt' id #}
 
+{# fun VikSetNamedVal as ^
+    { `String'
+    , `String'
+    } -> `CInt' id #}
+
 {# fun VikSetUsrState as ^
     { `IobPV'
     , `CInt'
     , `CULong'
     } -> `CInt' id #}
 
+{# fun VikSetNamedUsrState as ^
+    { `String'
+    , `CInt'
+    , `CULong'
+    } -> `CInt' id #}
+
 {# fun VikSetPulse as ^
     { `IobPV'
+    , `String'
+    , `CULong'
+    , `String'
+    } -> `CInt' id #}
+
+{# fun VikSetNamedPulse as ^
+    { `String'
     , `String'
     , `CULong'
     , `String'
@@ -275,6 +298,18 @@ iobSetValue (PvHandle pv _ _ _) val = do
 
 
 -- |Write a value to the IOBase server.
+iobSetNamedValue :: Path -> IobValue -> IO ReturnCode
+iobSetNamedValue (Path pv) val = do
+    err <- set val
+    iobStep
+    return $ cintToReturnCode err
+    where
+        set (IobString v) = vikSetNamedVal pv v
+        set (IobInt    v) = vikSetNamedVal pv $ show v
+        set (IobFloat  v) = vikSetNamedVal pv $ show v
+
+
+-- |Write a value to the IOBase server.
 iobPulseValue :: PvHandle -> IobValue -> TimeSpan -> IobValue -> IO ReturnCode
 iobPulseValue (PvHandle pv _ _ _) val (Milliseconds ms) val' = do
     err <- pulse val val'
@@ -287,10 +322,34 @@ iobPulseValue (PvHandle pv _ _ _) val (Milliseconds ms) val' = do
         pulse (IobFloat  v) (IobFloat  v') = vikSetPulse pv (show v) t (show v')
 
 
+-- |Write a value to the IOBase server.
+iobPulseNamedValue :: Path -> IobValue -> TimeSpan -> IobValue -> IO ReturnCode
+iobPulseNamedValue (Path pv) val (Milliseconds ms) val' = do
+    err <- pulse val val'
+    iobStep
+    return $ cintToReturnCode err
+    where
+        t = fromIntegral ms
+        pulse (IobString v) (IobString v') = vikSetNamedPulse pv v        t v'
+        pulse (IobInt    v) (IobInt    v') = vikSetNamedPulse pv (show v) t (show v')
+        pulse (IobFloat  v) (IobFloat  v') = vikSetNamedPulse pv (show v) t (show v')
+
+
 -- |Write a user status to the IOBase server.
 iobSetState :: PvHandle -> UserWord -> Word32 -> IO ReturnCode
 iobSetState (PvHandle pv _ _ _) w val = do
     err <- vikSetUsrState pv n $ CULong val
+    iobStep
+    return $ cintToReturnCode err
+    where toCInt UserWord1 = 0
+          toCInt UserWord2 = 1
+          n = toCInt w
+
+
+-- |Write a user status to the IOBase server.
+iobSetNamedState :: Path -> UserWord -> Word32 -> IO ReturnCode
+iobSetNamedState (Path pv) w val = do
+    err <- vikSetNamedUsrState pv n $ CULong val
     iobStep
     return $ cintToReturnCode err
     where toCInt UserWord1 = 0
